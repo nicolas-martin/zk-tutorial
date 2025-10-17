@@ -1,0 +1,1264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Merkle Tree & Zero-Knowledge Proof Visualizer</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        #app {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            min-width: 200px;
+            max-width: 300px;
+        }
+
+        button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .button-secondary {
+            background: linear-gradient(135deg, #56ab2f 0%, #a8e063 100%);
+        }
+
+        .button-danger {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+        }
+
+        .stats {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .stats span {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .stats strong {
+            color: #333;
+            font-size: 16px;
+        }
+
+        .stats code {
+            background: #333;
+            color: #0f0;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+
+        #graphContainer {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            min-height: 500px;
+            overflow: auto;
+        }
+
+        #treeSvg {
+            width: 100%;
+            height: 500px;
+        }
+
+        .node {
+            cursor: pointer;
+        }
+
+        .node circle {
+            stroke-width: 3px;
+            transition: all 0.3s;
+        }
+
+        .node text {
+            font-size: 10px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .link {
+            fill: none;
+            stroke: #999;
+            stroke-width: 2px;
+            opacity: 0.6;
+        }
+
+        .node.leaf circle {
+            fill: #4CAF50;
+            stroke: #2E7D32;
+        }
+
+        .node.internal circle {
+            fill: #2196F3;
+            stroke: #1565C0;
+        }
+
+        .node.root circle {
+            fill: #FF9800;
+            stroke: #E65100;
+        }
+
+        .node:hover circle {
+            r: 25;
+        }
+
+        .highlighted {
+            stroke: #FFD700 !important;
+            stroke-width: 4px !important;
+        }
+
+        #leaves {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        #leafList {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .leaf-item {
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            transition: transform 0.2s;
+            cursor: pointer;
+        }
+
+        .leaf-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .leaf-item.selected {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .leaf-item strong {
+            color: #667eea;
+        }
+
+        .leaf-item .hash {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: #666;
+            word-break: break-all;
+        }
+
+        #proofSection {
+            margin-top: 20px;
+            padding: 20px;
+            background: #fff3cd;
+            border-radius: 8px;
+            border: 1px solid #ffc107;
+        }
+
+        #proofPath {
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+
+        select {
+            padding: 10px;
+            margin-right: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            border: 1px solid #2196F3;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+
+        .info-box h3 {
+            color: #1976D2;
+            margin-bottom: 10px;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .info-box h3:after {
+            content: '▼';
+            font-size: 12px;
+            transition: transform 0.3s;
+        }
+        
+        .info-box.collapsed h3:after {
+            transform: rotate(-90deg);
+        }
+        
+        .info-box.collapsed .content {
+            display: none;
+        }
+
+        .info-box p, .info-box ol {
+            color: #555;
+            line-height: 1.6;
+        }
+        
+        .interactive-section {
+            background: #fff;
+            border: 2px solid #4CAF50;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .step-section {
+            background: #f9f9f9;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .input-group label {
+            min-width: 120px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .input-group input {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .output-display {
+            background: #1e1e1e;
+            color: #0f0;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+            min-height: 40px;
+            word-break: break-all;
+        }
+        
+        .button-generate {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            padding: 10px 20px;
+            margin: 10px 0;
+        }
+
+        .legend {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .legend-circle {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid;
+        }
+
+        .legend-leaf {
+            background: #4CAF50;
+            border-color: #2E7D32;
+        }
+
+        .legend-internal {
+            background: #2196F3;
+            border-color: #1565C0;
+        }
+
+        .legend-root {
+            background: #FF9800;
+            border-color: #E65100;
+        }
+
+        .tooltip {
+            position: absolute;
+            text-align: left;
+            padding: 10px;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border-radius: 5px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
+        
+        .help-icon {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            background: #2196F3;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 18px;
+            font-size: 12px;
+            cursor: help;
+            margin-left: 5px;
+            font-weight: bold;
+            position: relative;
+        }
+        
+        .help-tooltip {
+            display: none;
+            position: absolute;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            min-width: 250px;
+            max-width: 350px;
+            font-size: 12px;
+            line-height: 1.5;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 1001;
+            white-space: normal;
+        }
+        
+        .help-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: #333;
+        }
+        
+        .help-icon:hover .help-tooltip {
+            display: block;
+        }
+        
+        .help-tooltip code {
+            background: #555;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+        
+        .help-tooltip strong {
+            color: #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h1>Interactive Merkle Tree & ZK-SNARK Visualizer</h1>
+        <p class="subtitle">Understanding Merkle Trees, Poseidon Hash, and Groth16 Proofs in Zero-Knowledge Systems</p>
+        
+
+        <div class="interactive-section">
+            <h2>Interactive Proof Generation</h2>
+            
+            
+            <div class="step-section">
+                <h4>Step 1: Create Commitment</h4>
+                <div class="input-group">
+                    <label>
+                        Secret:
+                        <span class="help-icon">?
+                            <div class="help-tooltip">
+                                <strong>Secret (Private)</strong><br>
+                                A random value only you know. This proves you're the owner of this commitment without revealing which one it is.<br><br>
+                                <code>Example: 0x1234abcd</code><br>
+                                In production: 31 bytes of randomness
+                            </div>
+                        </span>
+                    </label>
+                    <input type="text" id="secretInput" placeholder="0x1234abcd" value="0x1234abcd">
+                </div>
+                <div class="input-group">
+                    <label>
+                        Amount:
+                        <span class="help-icon">?
+                            <div class="help-tooltip">
+                                <strong>Amount</strong><br>
+                                The value being committed (e.g., tokens, ETH, SOL). This is hidden in the commitment but verified in the proof.<br><br>
+                                <code>Example: 100 = 0.0000001 ETH</code><br>
+                                Typically uses smallest unit (wei, lamports)
+                            </div>
+                        </span>
+                    </label>
+                    <input type="text" id="amountInput" placeholder="100" value="100">
+                </div>
+                <div class="input-group">
+                    <label>
+                        Blinding:
+                        <span class="help-icon">?
+                            <div class="help-tooltip">
+                                <strong>Blinding Factor (Random Nonce)</strong><br>
+                                Adds randomness to prevent dictionary attacks. Even if two users deposit the same amount, their commitments will be different.<br><br>
+                                <strong>Purpose:</strong> Without blinding, someone could hash all possible amounts to find yours.<br><br>
+                                <code>Example: random 31 bytes</code>
+                            </div>
+                        </span>
+                    </label>
+                    <input type="text" id="blindingInput" placeholder="0x5678ef01" value="0x5678ef01">
+                </div>
+                <div class="input-group">
+                    <label>
+                        Public Key:
+                        <span class="help-icon">?
+                            <div class="help-tooltip">
+                                <strong>Public Key (Spending Key)</strong><br>
+                                Derived from your secret. Used to authorize withdrawals. Only someone with the corresponding private key can generate valid withdrawal proofs.<br><br>
+                                <strong>Purpose:</strong> Links commitment to your identity without revealing it.<br><br>
+                                <code>pubKey = Hash(secret)</code><br>
+                                This ensures only you can withdraw.
+                            </div>
+                        </span>
+                    </label>
+                    <input type="text" id="pubkeyInput" placeholder="0xabcdef12" value="0xabcdef12">
+                </div>
+                <button class="button-generate" onclick="generateCommitment()">Generate Commitment</button>
+                <button class="button-secondary" onclick="generateRandomValues()" style="margin-left: 10px;">Random Values</button>
+                <div class="output-display" id="commitmentOutput">Commitment will appear here...</div>
+            </div>
+            
+            <div class="step-section">
+                <h4>Step 2: Add to Merkle Tree
+                    <span class="help-icon">?
+                        <div class="help-tooltip">
+                            <strong>Merkle Tree Insertion</strong><br>
+                            Your commitment becomes a leaf in the tree. The tree is append-only (no deletions) to maintain integrity.<br><br>
+                            <strong>Key Points:</strong><br>
+                            - Position is public but commitment is private<br>
+                            - Tree root changes with each insertion<br>
+                            - Old roots remain valid for proving
+                        </div>
+                    </span>
+                </h4>
+                <button class="button-generate" onclick="addCommitmentToTree()">Add to Tree</button>
+                <div class="output-display" id="treeOutput">Tree position will appear here...</div>
+            </div>
+            
+            <div class="step-section">
+                <h4>Step 3: Generate Merkle Proof
+                    <span class="help-icon">?
+                        <div class="help-tooltip">
+                            <strong>Merkle Path Generation</strong><br>
+                            Creates a proof of membership without revealing which leaf is yours.<br><br>
+                            <strong>Path Elements:</strong> Sibling hashes at each level<br>
+                            <strong>Path Indices:</strong> Whether you're left (0) or right (1) child<br><br>
+                            With these, anyone can verify your leaf reaches the root!
+                        </div>
+                    </span>
+                </h4>
+                <div class="input-group">
+                    <label>
+                        Leaf Index:
+                        <span class="help-icon">?
+                            <div class="help-tooltip">
+                                <strong>Leaf Index (Private)</strong><br>
+                                The position of your commitment in the tree. This must remain secret!<br><br>
+                                If revealed, someone could link your deposit to your withdrawal.
+                            </div>
+                        </span>
+                    </label>
+                    <input type="number" id="proofIndexInput" placeholder="0" value="0" min="0">
+                </div>
+                <button class="button-generate" onclick="generateMerkleProof()">Generate Merkle Path</button>
+                <div class="output-display" id="merkleProofOutput">Merkle proof will appear here...</div>
+            </div>
+            
+            <div class="step-section">
+                <h4>Step 4: Generate ZK Proof
+                    <span class="help-icon">?
+                        <div class="help-tooltip">
+                            <strong>Groth16 Proof Generation</strong><br>
+                            Creates a succinct proof (only 192 bytes!) that proves:<br>
+                            - You know a valid commitment in the tree<br>
+                            - You know its secret preimage<br>
+                            - You haven't withdrawn it before<br><br>
+                            All without revealing which commitment!
+                        </div>
+                    </span>
+                </h4>
+                <div class="input-group">
+                    <label>
+                        Nullifier:
+                        <span class="help-icon">?
+                            <div class="help-tooltip">
+                                <strong>Nullifier (Prevent Double-Spending)</strong><br>
+                                A unique value derived from your secret that prevents withdrawing twice.<br><br>
+                                <code>nullifier = Hash(secret, leafIndex)</code><br><br>
+                                Contract stores used nullifiers to prevent reuse, but can't link them to deposits!
+                            </div>
+                        </span>
+                    </label>
+                    <input type="text" id="nullifierInput" placeholder="0x9876fedc" value="0x9876fedc">
+                </div>
+                <div class="input-group">
+                    <label>
+                        Recipient:
+                        <span class="help-icon">?
+                            <div class="help-tooltip">
+                                <strong>Recipient Address</strong><br>
+                                Where to send the withdrawn funds. Can be ANY address - doesn't need to be the depositor!<br><br>
+                                This breaks the on-chain link between deposit and withdrawal addresses.
+                            </div>
+                        </span>
+                    </label>
+                    <input type="text" id="recipientInput" placeholder="0x742d35Cc..." value="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb">
+                </div>
+                <button class="button-generate" onclick="generateZKProof()">Generate Groth16 Proof</button>
+                <div class="output-display" id="zkProofOutput">ZK proof will appear here...</div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <input type="text" id="dataInput" placeholder="Enter custom leaf data">
+            <button onclick="addLeaf()">Add Custom Leaf</button>
+            <button onclick="addRandomLeaves()" class="button-secondary">Add Sample Leaves</button>
+            <button onclick="clearTree()" class="button-danger">Clear Tree</button>
+            <button onclick="toggleProofMode()">Show Proof Details</button>
+            <button onclick="showCircuitInfo()">Show Circuit</button>
+        </div>
+        
+        <div class="stats">
+            <span>Leaves: <strong id="leafCount">0</strong></span>
+            <span>Tree Height: <strong id="treeHeight">20</strong> levels</span>
+            <span>Root Hash: <code id="rootHash">Empty</code></span>
+            <span>Anonymity Set: <strong id="anonSet">0</strong></span>
+            <span>Next Index: <strong id="nextIndex">0</strong></span>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-circle legend-leaf"></div>
+                <span>Leaf Node (Commitment)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-circle legend-internal"></div>
+                <span>Internal Node</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-circle legend-root"></div>
+                <span>Root</span>
+            </div>
+        </div>
+        
+        <div id="graphContainer">
+            <svg id="treeSvg"></svg>
+        </div>
+        
+        <div id="leaves">
+            <h3>Tree Leaves (Commitments):</h3>
+            <p style="font-size: 12px; color: #666; margin: 5px 0;">Each leaf = Poseidon(secret, amount, blinding, publicKey) - a 254-bit field element</p>
+            <div id="leafList"></div>
+        </div>
+        
+        <div id="proofSection" style="display:none;">
+            <h3>Groth16 Zero-Knowledge Proof Generation</h3>
+            <p>Click on a leaf to see the complete proof generation process</p>
+            <div id="proofPath"></div>
+        </div>
+        
+        <div id="circuitSection" style="display:none;" class="info-box" style="background: #e3f2fd; border-color: #2196F3;">
+            <h3>Circom Circuit Details</h3>
+            <div id="circuitInfo" style="background: white; padding: 15px; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 12px; white-space: pre-wrap; line-height: 1.4;"></div>
+        </div>
+        
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        // Global variables
+        let leaves = [];
+        let treeData = null;
+        let showProofMode = false;
+        let showCircuit = false;
+        let selectedLeafIndex = null;
+        let currentCommitment = null;
+        let storedCommitments = [];
+        const DEFAULT_TREE_HEIGHT = 20; // Common height for ZK applications
+
+        // Toggle collapse for info boxes
+        function toggleCollapse(boxId) {
+            const box = document.getElementById(boxId);
+            box.classList.toggle('collapsed');
+        }
+        
+        // Generate random values for demonstration
+        function generateRandomValues() {
+            const randomHex = () => '0x' + Math.random().toString(16).substr(2, 8);
+            const randomAmount = () => Math.floor(Math.random() * 1000) + 1;
+            
+            const secret = randomHex();
+            const amount = randomAmount().toString();
+            const blinding = randomHex();
+            // In real implementation, pubKey = Hash(secret)
+            const pubkey = poseidonHash(secret).substring(0, 10);
+            
+            document.getElementById('secretInput').value = secret;
+            document.getElementById('amountInput').value = amount;
+            document.getElementById('blindingInput').value = blinding;
+            document.getElementById('pubkeyInput').value = pubkey;
+            
+            // Auto-generate commitment
+            generateCommitment();
+        }
+        
+        // Interactive functions
+        function generateCommitment() {
+            const secret = document.getElementById('secretInput').value;
+            const amount = document.getElementById('amountInput').value;
+            const blinding = document.getElementById('blindingInput').value;
+            const pubkey = document.getElementById('pubkeyInput').value;
+            
+            if (!secret || !amount || !blinding || !pubkey) {
+                alert('Please fill all fields');
+                return;
+            }
+            
+            currentCommitment = poseidonHash(secret, amount, blinding, pubkey);
+            const output = document.getElementById('commitmentOutput');
+            
+            // Show concise output
+            output.innerHTML = `
+                <strong style="color: #4CAF50">✓ Commitment Generated!</strong><br>
+                Poseidon(${secret.substr(0,6)}..., ${amount}, ${blinding.substr(0,6)}..., ${pubkey.substr(0,6)}...)<br>
+                = <strong style="color: #4CAF50; font-size: 14px;">${currentCommitment}</strong><br>
+                <small>Ready to add as leaf #${leaves.length}</small>
+            `;
+        }
+        
+        function addCommitmentToTree() {
+            if (!currentCommitment) {
+                alert('Please generate a commitment first');
+                return;
+            }
+            
+            const leafData = `commitment_${currentCommitment.substring(0, 8)}`;
+            leaves.push(leafData);
+            storedCommitments.push({
+                commitment: currentCommitment,
+                index: leaves.length - 1,
+                secret: document.getElementById('secretInput').value,
+                amount: document.getElementById('amountInput').value
+            });
+            
+            updateDisplay();
+            
+            const output = document.getElementById('treeOutput');
+            output.innerHTML = `
+                <strong>Added to Tree!</strong><br>
+                Position: Index ${leaves.length - 1}<br>
+                Tree Root: ${treeData.root.hash}<br>
+                Total Leaves: ${leaves.length}
+            `;
+        }
+        
+        function generateMerkleProof() {
+            const index = parseInt(document.getElementById('proofIndexInput').value);
+            
+            if (index >= leaves.length) {
+                alert('Invalid index. Tree only has ' + leaves.length + ' leaves');
+                return;
+            }
+            
+            const proof = getMerkleProof(index);
+            const output = document.getElementById('merkleProofOutput');
+            
+            output.innerHTML = `
+                <strong>Merkle Proof Generated!</strong><br>
+                <strong>Path Elements:</strong> [${proof.pathElements.map(e => '"' + e.substr(0,6) + '..."').join(', ')}]<br>
+                <strong>Path Indices:</strong> [${proof.pathIndices.join(', ')}]<br>
+                <strong>Root:</strong> ${treeData.root.hash}<br>
+                <small>This proof can verify membership without revealing position!</small>
+            `;
+            
+            highlightProofPath(index);
+        }
+        
+        function generateZKProof() {
+            const nullifier = document.getElementById('nullifierInput').value;
+            const recipient = document.getElementById('recipientInput').value;
+            
+            if (!nullifier || !recipient) {
+                alert('Please fill all fields');
+                return;
+            }
+            
+            const output = document.getElementById('zkProofOutput');
+            
+            // Simulate proof generation
+            const proofA = '0x' + Math.random().toString(16).substr(2, 64);
+            const proofB = '0x' + Math.random().toString(16).substr(2, 64);
+            const proofC = '0x' + Math.random().toString(16).substr(2, 64);
+            
+            output.innerHTML = `
+                <strong style="color: #4CAF50">✓ Groth16 Proof Generated!</strong><br>
+                <strong>Proof:</strong> [π_A, π_B, π_C] = 192 bytes<br>
+                <strong>Nullifier Hash:</strong> ${poseidonHash(nullifier).substr(0, 16)}...<br>
+                <strong>Recipient:</strong> ${recipient.substr(0, 20)}...<br>
+                <small>Gas: ~200k | Ready for on-chain verification</small>
+            `;
+        }
+        
+        // Simulates Poseidon hash - a ZK-friendly hash function
+        // Real Poseidon operates in BN254 field with specific constants
+        function poseidonHash(...inputs) {
+            // In reality: operates over F_p where p = 21888242871839275222246405745257275088548364400416034343698204186575808495617
+            const data = inputs.join(',');
+            let hash = 0;
+            for (let i = 0; i < data.length; i++) {
+                const char = data.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            // Returns simulated 254-bit field element as hex
+            return Math.abs(hash).toString(16).padStart(8, '0').toUpperCase();
+        }
+        
+        // For simple visualization, keeping original hash for leaf data
+        function hash(data) {
+            return poseidonHash(data);
+        }
+
+        // Build Merkle tree
+        function buildMerkleTree(leafData) {
+            if (leafData.length === 0) return null;
+            
+            let currentLevel = leafData.map((data, index) => ({
+                value: data,
+                hash: hash(data),
+                type: 'leaf',
+                index: index,
+                level: 0
+            }));
+            
+            const allNodes = [...currentLevel];
+            let levelNum = 1;
+            
+            while (currentLevel.length > 1) {
+                const newLevel = [];
+                
+                for (let i = 0; i < currentLevel.length; i += 2) {
+                    const left = currentLevel[i];
+                    const right = currentLevel[i + 1] || left;
+                    
+                    const parent = {
+                        hash: hash(left.hash + right.hash),
+                        type: currentLevel.length === 2 ? 'root' : 'internal',
+                        level: levelNum,
+                        left: left,
+                        right: right === left ? null : right,
+                        value: `H(${left.hash.substring(0,4)}+${right.hash.substring(0,4)})`
+                    };
+                    
+                    left.parent = parent;
+                    if (right !== left) right.parent = parent;
+                    
+                    newLevel.push(parent);
+                    allNodes.push(parent);
+                }
+                
+                currentLevel = newLevel;
+                levelNum++;
+            }
+            
+            return {
+                root: currentLevel[0],
+                nodes: allNodes,
+                height: levelNum
+            };
+        }
+
+        // Visualize tree with D3
+        function visualizeTree() {
+            if (!treeData || !treeData.root) {
+                d3.select('#treeSvg').selectAll('*').remove();
+                return;
+            }
+            
+            const svg = d3.select('#treeSvg');
+            svg.selectAll('*').remove();
+            
+            const width = document.getElementById('graphContainer').clientWidth - 40;
+            const height = 480;
+            
+            const treeLayout = d3.tree()
+                .size([width - 100, height - 100]);
+            
+            const root = d3.hierarchy(treeData.root, d => {
+                if (d.left && d.right && d.right !== d.left) {
+                    return [d.left, d.right];
+                } else if (d.left) {
+                    return [d.left];
+                }
+                return null;
+            });
+            
+            const treeNodes = treeLayout(root);
+            
+            const g = svg.append('g')
+                .attr('transform', 'translate(50, 40)');
+            
+            // Draw links
+            g.selectAll('.link')
+                .data(treeNodes.links())
+                .enter().append('path')
+                .attr('class', 'link')
+                .attr('d', d3.linkVertical()
+                    .x(d => d.x)
+                    .y(d => d.y));
+            
+            // Draw nodes
+            const node = g.selectAll('.node')
+                .data(treeNodes.descendants())
+                .enter().append('g')
+                .attr('class', d => `node ${d.data.type}`)
+                .attr('transform', d => `translate(${d.x},${d.y})`)
+                .on('mouseover', function(event, d) {
+                    showTooltip(event, d.data);
+                })
+                .on('mouseout', hideTooltip)
+                .on('click', function(event, d) {
+                    if (d.data.type === 'leaf') {
+                        selectLeaf(d.data.index);
+                    }
+                });
+            
+            // Add circles
+            node.append('circle')
+                .attr('r', 20);
+            
+            // Add labels
+            node.append('text')
+                .attr('dy', '.35em')
+                .attr('text-anchor', 'middle')
+                .text(d => d.data.hash.substring(0, 4))
+                .style('fill', 'white')
+                .style('font-weight', 'bold');
+            
+            // Add value labels for leaves
+            node.filter(d => d.data.type === 'leaf')
+                .append('text')
+                .attr('dy', '35px')
+                .attr('text-anchor', 'middle')
+                .text(d => `Index ${d.data.index}`)
+                .style('fill', '#666')
+                .style('font-size', '12px');
+        }
+
+        // Tooltip functions
+        function showTooltip(event, node) {
+            const tooltip = document.getElementById('tooltip');
+            let content = `<strong>Type:</strong> ${node.type}<br>`;
+            content += `<strong>Hash:</strong> ${node.hash}<br>`;
+            
+            if (node.type === 'leaf') {
+                content += `<strong>Leaf Data:</strong> "${node.value}"<br>`;
+                content += `<strong>Index:</strong> ${node.index}<br>`;
+                content += `<strong>Field Element:</strong> ${node.hash} ∈ F_p<br>`;
+                content += `<strong>Storage:</strong> Layer 0, Position ${node.index}`;
+            } else if (node.type === 'internal' || node.type === 'root') {
+                content += `<strong>Hash Formula:</strong> ${node.value}<br>`;
+                content += `<strong>Field Element:</strong> ${node.hash} ∈ F_p`;
+            }
+            
+            tooltip.innerHTML = content;
+            tooltip.style.left = (event.pageX + 10) + 'px';
+            tooltip.style.top = (event.pageY - 28) + 'px';
+            tooltip.style.opacity = 1;
+        }
+
+        function hideTooltip() {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.style.opacity = 0;
+        }
+
+        // Add leaf
+        function addLeaf() {
+            const input = document.getElementById('dataInput');
+            if (input.value && leaves.length < 16) {
+                leaves.push(input.value);
+                input.value = '';
+                updateDisplay();
+            } else if (leaves.length >= 16) {
+                alert('Maximum 16 leaves for optimal visualization');
+            }
+        }
+
+        // Add random leaves
+        function addRandomLeaves() {
+            const sampleLeaves = [
+                'secret_0x1234, amount_100',
+                'secret_0x5678, amount_50',
+                'secret_0x9abc, amount_200',
+                'secret_0xdef0, amount_10',
+                'secret_0x1111, amount_500',
+                'secret_0x2222, amount_25'
+            ];
+            
+            const available = sampleLeaves.filter(d => !leaves.includes(d));
+            if (available.length > 0 && leaves.length < 16) {
+                const random = available[Math.floor(Math.random() * available.length)];
+                leaves.push(random);
+                updateDisplay();
+            }
+        }
+
+        // Clear tree
+        function clearTree() {
+            leaves = [];
+            treeData = null;
+            selectedLeafIndex = null;
+            updateDisplay();
+        }
+
+        // Toggle proof mode
+        function toggleProofMode() {
+            showProofMode = !showProofMode;
+            const proofSection = document.getElementById('proofSection');
+            proofSection.style.display = showProofMode ? 'block' : 'none';
+            
+            if (!showProofMode) {
+                selectedLeafIndex = null;
+                updateDisplay();
+            }
+        }
+
+        // Select a leaf
+        function selectLeaf(index) {
+            if (!showProofMode) {
+                toggleProofMode();
+            }
+            
+            selectedLeafIndex = index;
+            showProof(index);
+            updateLeafDisplay();
+        }
+
+        // Show Groth16 proof generation process
+        function showProof(leafIndex) {
+            if (!treeData) return;
+            
+            const proof = getMerkleProof(leafIndex);
+            const proofDiv = document.getElementById('proofPath');
+            const leafData = leaves[leafIndex];
+            
+            let content = `<strong>Complete Groth16 Proof Generation Process</strong>\n\n`;
+            
+            content += `<strong>STEP 1: COMMITMENT GENERATION</strong>\n`;
+            content += `Input Data: "${leafData}"\n`;
+            content += `Poseidon Hash: ${hash(leafData)} (254-bit field element)\n`;
+            content += `Tree Position: Index ${leafIndex}\n\n`;
+            
+            content += `<strong>STEP 2: WITNESS GENERATION</strong>\n`;
+            content += `Private Inputs (kept secret):\n`;
+            content += `  - secret: 0x${Math.random().toString(16).substr(2, 8)}\n`;
+            content += `  - nullifier: 0x${Math.random().toString(16).substr(2, 8)}\n`;
+            content += `  - amount: 100\n`;
+            content += `  - blinding: 0x${Math.random().toString(16).substr(2, 8)}\n`;
+            content += `  - pathElements: [${proof.pathElements.map(e => '"' + e.substr(0,6) + '..."').join(', ')}]\n`;
+            content += `  - pathIndices: [${proof.pathIndices.join(', ')}]\n\n`;
+            
+            content += `Public Inputs (visible on-chain):\n`;
+            content += `  - merkleRoot: ${treeData.root.hash}\n`;
+            content += `  - nullifierHash: 0x${Math.random().toString(16).substr(2, 16)}\n`;
+            content += `  - recipient: 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb\n`;
+            content += `  - relayer: 0x0000000000000000000000000000000000000000\n`;
+            content += `  - fee: 0\n\n`;
+            
+            content += `<strong>STEP 3: GROTH16 PROOF GENERATION</strong>\n`;
+            content += `Using proving key (zkey): transaction.zkey (${(Math.random() * 100 + 50).toFixed(1)} MB)\n`;
+            content += `Generating proof points on BN254 curve...\n\n`;
+            
+            content += `Proof Output (3 elliptic curve points):\n`;
+            content += `  π_A = (\n    0x${Math.random().toString(16).substr(2, 16)}...,\n    0x${Math.random().toString(16).substr(2, 16)}...\n  )\n`;
+            content += `  π_B = (\n    [0x${Math.random().toString(16).substr(2, 16)}...,\n     0x${Math.random().toString(16).substr(2, 16)}...],\n    [0x${Math.random().toString(16).substr(2, 16)}...,\n     0x${Math.random().toString(16).substr(2, 16)}...]\n  )\n`;
+            content += `  π_C = (\n    0x${Math.random().toString(16).substr(2, 16)}...,\n    0x${Math.random().toString(16).substr(2, 16)}...\n  )\n\n`;
+            
+            content += `<strong>STEP 4: ON-CHAIN VERIFICATION</strong>\n`;
+            content += `Verification Key Size: ~1.8 KB\n`;
+            content += `Proof Size: 192 bytes (constant!)\n`;
+            content += `Gas Cost: ~200,000 gas\n\n`;
+            
+            content += `Pairing Equation Check:\n`;
+            content += `  e(π_A, π_B) ?= e(α, β) · e(L, γ) · e(π_C, δ)\n`;
+            content += `  where L = Σ(a_i · IC_i) for public inputs a_i\n\n`;
+            
+            content += `<strong>VERIFICATION RESULT:</strong> VALID\n`;
+            content += `<strong>Privacy Achieved:</strong> Proof reveals membership but not position!`;
+            
+            proofDiv.innerHTML = content;
+            highlightProofPath(leafIndex);
+        }
+
+        // Get Merkle proof for ZK circuit
+        function getMerkleProof(leafIndex) {
+            if (!treeData) return { pathElements: [], pathIndices: [] };
+            
+            const pathElements = [];
+            const pathIndices = [];
+            let node = treeData.nodes.find(n => n.type === 'leaf' && n.index === leafIndex);
+            
+            if (!node) return { pathElements: [], pathIndices: [] };
+            
+            // Track current index at each level for correct path indices
+            let currentIndex = leafIndex;
+            
+            while (node.parent) {
+                const parent = node.parent;
+                const isLeft = parent.left === node;
+                
+                // Path indices: 0 = left child, 1 = right child
+                pathIndices.push(currentIndex % 2);
+                
+                const sibling = isLeft ? parent.right : parent.left;
+                if (sibling && sibling !== node) {
+                    pathElements.push(sibling.hash);
+                } else {
+                    // In real implementation, uses zero hash for empty siblings
+                    pathElements.push('00000000');
+                }
+                
+                // Move up the tree - parent index is current index divided by 2
+                currentIndex = Math.floor(currentIndex / 2);
+                node = parent;
+            }
+            
+            return { pathElements, pathIndices };
+        }
+
+        // Highlight proof path
+        function highlightProofPath(leafIndex) {
+            d3.selectAll('.node circle').classed('highlighted', false);
+            d3.selectAll('.link').style('stroke', '#999').style('stroke-width', '2px');
+            
+            let node = treeData.nodes.find(n => n.type === 'leaf' && n.index === leafIndex);
+            const nodesToHighlight = [];
+            
+            while (node) {
+                nodesToHighlight.push(node);
+                node = node.parent;
+            }
+            
+            d3.selectAll('.node').each(function(d) {
+                if (nodesToHighlight.includes(d.data)) {
+                    d3.select(this).select('circle').classed('highlighted', true);
+                }
+            });
+            
+            d3.selectAll('.link').each(function(d) {
+                if (nodesToHighlight.includes(d.target.data) && nodesToHighlight.includes(d.source.data)) {
+                    d3.select(this)
+                        .style('stroke', '#FFD700')
+                        .style('stroke-width', '4px');
+                }
+            });
+        }
+
+        // Update leaf display
+        function updateLeafDisplay() {
+            const leafList = document.getElementById('leafList');
+            leafList.innerHTML = leaves.map((leaf, i) => `
+                <div class="leaf-item ${selectedLeafIndex === i ? 'selected' : ''}" onclick="selectLeaf(${i})">
+                    <strong>Leaf ${i}</strong><br>
+                    Input: "${leaf}"<br>
+                    <span class="hash">Poseidon: ${hash(leaf)}</span><br>
+                    <span style="font-size: 10px; color: #999;">Field: BN254 (254-bit)</span>
+                </div>
+            `).join('');
+        }
+
+        // Show circuit info
+        function showCircuitInfo() {
+            showCircuit = !showCircuit;
+            const circuitSection = document.getElementById('circuitSection');
+            circuitSection.style.display = showCircuit ? 'block' : 'none';
+            
+            if (showCircuit) {
+                const circuitDiv = document.getElementById('circuitInfo');
+                let content = `<strong>Circom Circuit Implementation</strong>\n\n`;
+                
+                content += `<strong>Circuit Template (transaction.circom):</strong>\n\n`;
+                content += `pragma circom 2.0.0;\n\n`;
+                content += `template MerkleTreeCheck(levels) {\n`;
+                content += `    // Private inputs\n`;
+                content += `    signal input leaf;           // commitment to prove\n`;
+                content += `    signal input pathElements[levels];  // sibling hashes\n`;
+                content += `    signal input pathIndices[levels];   // 0=left, 1=right\n`;
+                content += `    \n`;
+                content += `    // Public input\n`;
+                content += `    signal input root;           // merkle root to verify against\n`;
+                content += `    \n`;
+                content += `    // Hash function components\n`;
+                content += `    component hashers[levels];\n`;
+                content += `    \n`;
+                content += `    signal currentHash[levels + 1];\n`;
+                content += `    currentHash[0] <== leaf;\n`;
+                content += `    \n`;
+                content += `    // Compute path from leaf to root\n`;
+                content += `    for (var i = 0; i < levels; i++) {\n`;
+                content += `        hashers[i] = Poseidon(2);\n`;
+                content += `        \n`;
+                content += `        // Select order based on path index\n`;
+                content += `        hashers[i].inputs[0] <== pathIndices[i] == 0 ? \n`;
+                content += `            currentHash[i] : pathElements[i];\n`;
+                content += `        hashers[i].inputs[1] <== pathIndices[i] == 0 ? \n`;
+                content += `            pathElements[i] : currentHash[i];\n`;
+                content += `        \n`;
+                content += `        currentHash[i + 1] <== hashers[i].out;\n`;
+                content += `    }\n`;
+                content += `    \n`;
+                content += `    // Verify computed root matches public input\n`;
+                content += `    root === currentHash[levels];\n`;
+                content += `}\n\n`;
+                
+                content += `<strong>Circuit Statistics:</strong>\n`;
+                content += `- Constraints: ~28,000 (for height 20)\n`;
+                content += `- Wires: ~35,000\n`;
+                content += `- Labels: ~120,000\n`;
+                content += `- Private inputs: ${DEFAULT_TREE_HEIGHT + 2}\n`;
+                content += `- Public inputs: 5-7 (root, nullifierHash, recipient, etc.)\n\n`;
+                
+                content += `<strong>Performance Metrics:</strong>\n`;
+                content += `- Proof generation: 2-5 seconds (browser)\n`;
+                content += `- Proof size: 192 bytes (constant!)\n`;
+                content += `- Verification time: ~3ms\n`;
+                content += `- Verification gas: ~200k (Ethereum/Solana)\n`;
+                
+                circuitDiv.innerHTML = content;
+            }
+        }
+        
+        // Update entire display
+        function updateDisplay() {
+            document.getElementById('leafCount').textContent = leaves.length;
+            document.getElementById('anonSet').textContent = leaves.length;
+            document.getElementById('nextIndex').textContent = leaves.length;
+            document.getElementById('treeHeight').textContent = DEFAULT_TREE_HEIGHT;
+            
+            treeData = buildMerkleTree(leaves);
+            
+            const rootHash = document.getElementById('rootHash');
+            if (treeData && treeData.root) {
+                rootHash.textContent = treeData.root.hash;
+            } else {
+                rootHash.textContent = 'Empty';
+            }
+            
+            updateLeafDisplay();
+            visualizeTree();
+        }
+
+        // Initialize with sample data
+        setTimeout(() => {
+            ['secret_0xabc1, amount_100', 'secret_0xdef2, amount_50', 'secret_0x1234, amount_200', 'secret_0x5678, amount_10'].forEach(data => {
+                leaves.push(data);
+            });
+            updateDisplay();
+        }, 100);
+    </script>
+</body>
+</html>
